@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detecção de Objetos e Captura de Imagem com Câmera</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: o;
+            padding: 15px;
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: rgb(4, 109, 109);
+            color: black;
+            padding: 20px;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #000000;
+        }
+
+        .camera-container {
+            position: relative;
+            max-width: 640px;
+            width: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        video,
+        canvas,
+        img {
+            width: 100%;
+            margin-bottom: -550px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            color: #fff;
+            background-color: #01191e;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 650px;
+        }
+
+        button:hover {
+            background-color: #306093;
+        }
+
+        #capturedImage {
+            margin-top: 15px;
+            border-radius: 8px;
+            display: none;
+            max-width: 640px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Detecção de Objetos e Captura de Imagem com Câmera</h1>
+
+    <!-- Elemento de vídeo para exibir o feed da câmera -->
+    <video id="videoElement" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+
+    <!-- Botão para capturar imagem -->
+    <button onclick="captureImage()">Capturar Imagem</button>
+
+    <!-- Elemento de imagem para mostrar a captura -->
+    <img id="capturedImage" alt="Imagem capturada">
+
+    <script>
+        const videoElement = document.getElementById('videoElement');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const capturedImage = document.getElementById('capturedImage');
+
+        // Função para iniciar a câmera
+        async function setupCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                videoElement.srcObject = stream;
+                return new Promise((resolve) => {
+                    videoElement.onloadedmetadata = () => {
+                        resolve(videoElement);
+                    };
+                });
+            } catch (error) {
+                console.error('Erro ao acessar a câmera:', error);
+                alert('Erro ao acessar a câmera: ' + error.message);
+            }
+        }
+
+        // Função para capturar a imagem
+        function captureImage() {
+            const context = canvas.getContext('2d');
+            canvas.width = videoElement.videoWidth;
+            canvas.height = videoElement.videoHeight;
+            context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+            // Converte o canvas para uma URL de imagem base64 e exibe no elemento <img>
+            const imageData = canvas.toDataURL('image/png');
+            capturedImage.src = imageData;
+            capturedImage.style.display = 'block'; // Exibe a imagem capturada
+        }
+
+        async function loadModelAndDetect() {
+            // Carrega o modelo COCO-SSD
+            const model = await cocoSsd.load();
+            console.log("Modelo carregado!");
+
+            // Inicia a detecção em tempo real
+            detectFrame(videoElement, model);
+        }
+
+        async function detectFrame(video, model) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            // Detecta objetos na imagem da câmera
+            const predictions = await model.detect(video);
+
+            // Limpa o canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Desenha as predições
+            predictions.forEach(prediction => {
+                ctx.beginPath();
+                ctx.rect(
+                    prediction.bbox[0],
+                    prediction.bbox[1],
+                    prediction.bbox[2],
+                    prediction.bbox[3]
+                );
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = 'red';
+                ctx.fillStyle = 'red';
+                ctx.stroke();
+                ctx.fillText(
+                    prediction.class + ' - ' + Math.round(prediction.score * 100) + '%',
+                    prediction.bbox[0],
+                    prediction.bbox[1] > 10 ? prediction.bbox[1] - 5 : 10
+                );
+            });
+
+            // Continua a detecção no próximo frame
+            requestAnimationFrame(() => detectFrame(video, model));
+        }
+
+        // Inicia a câmera e a detecção
+        setupCamera().then(loadModelAndDetect);
+        function startVoiceRecognition() {
+            const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            recognition.lang = 'pt-BR'; // Define o idioma para português
+
+            recognition.onstart = () => {
+                console.log('Ativação por voz iniciada. Fale "sindy" para começar.');
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript.toLowerCase();
+                console.log('Comando reconhecido:', transcript);
+                if (transcript.includes('sindy')) {
+                    setupCamera().then(loadModelAndDetect);
+                }
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Erro de reconhecimento de voz:', event.error);
+            };
+
+            recognition.start();
+        }
+
+        // Inicia o reconhecimento de voz
+        startVoiceRecognition();
+    </script>
+</body>
+
+</html>
