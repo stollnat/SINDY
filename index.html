@@ -2,194 +2,229 @@
 <html lang="pt-br">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detecção de Objetos e Captura de Imagem com Câmera</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: o;
-            padding: 15px;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reconhecimento de Objetos para Cegos</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+  <style>
+    body {
+      font-family: Georgia, 'Times New Roman', Times, serif;
+      background-color: #02667f;
+      color: #000000;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
 
-        body {
-            font-family: Arial, Helvetica, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            background-color: rgb(4, 109, 109);
-            color: black;
-            padding: 20px;
-        }
+    h1 {
+      text-align: center;
+    }
 
-        h1 {
-            font-size: 24px;
-            margin-bottom: 20px;
-            color: #000000;
-        }
+    #video {
+      width: 80%;
+      max-width: 640px;
+      height: auto;
+      border: 1px solid #026685;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
 
-        .camera-container {
-            position: relative;
-            max-width: 640px;
-            width: 100%;
-            border-radius: 8px;
-            overflow: hidden;
-            background-color: #fff;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        video,
-        canvas,
-        img {
-            width: 100%;
-            margin-bottom: -550px;
-        }
-
-        button {
-            padding: 10px 20px;
-            font-size: 16px;
-            color: #fff;
-            background-color: #01191e;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-top: 650px;
-        }
-
-        button:hover {
-            background-color: #306093;
-        }
-
-        #capturedImage {
-            margin-top: 15px;
-            border-radius: 8px;
-            display: none;
-            max-width: 640px;
-        }
-    </style>
+    #feedback {
+      position: fixed;
+      font-family: Georgia, 'Times New Roman', Times, serif;
+      bottom: 20px;
+      left: 20px;
+      padding: 10px;
+      color: rgb(0, 0, 0);
+      font-size: 18px;
+      border-radius: 5px;
+    }
+  </style>
 </head>
 
 <body>
-    <h1>Detecção de Objetos e Captura de Imagem com Câmera</h1>
+  <h1>Reconhecimento de Objetos para Cegos</h1>
+  <video id="video" autoplay></video>
+  <div id="feedback">Aguardando objetos...</div>
 
-    <!-- Elemento de vídeo para exibir o feed da câmera -->
-    <video id="videoElement" autoplay playsinline></video>
-    <canvas id="canvas"></canvas>
+  <script>
+    let selectedVoice;
 
-    <!-- Botão para capturar imagem -->
-    <button onclick="captureImage()">Capturar Imagem</button>
+    // Mapa de tradução dos objetos do modelo para português  
+    const translationMap = {
+      "person": "pessoa",
+      "bicycle": "bicicleta",
+      "car": "carro",
+      "motorcycle": "moto",
+      "airplane": "avião",
+      "bus": "ônibus",
+      "train": "trem",
+      "truck": "caminhão",
+      "boat": "barco",
+      "traffic light": "semáforo",
+      "fire hydrant": "hidrante",
+      "stop sign": "placa de pare",
+      "parking meter": "parquímetro",
+      "bench": "banco",
+      "bird": "pássaro",
+      "cat": "gato",
+      "dog": "cachorro",
+      "horse": "cavalo",
+      "sheep": "ovelha",
+      "cow": "vaca",
+      "elephant": "elefante",
+      "bear": "urso",
+      "zebra": "zebra",
+      "giraffe": "girafa",
+      "backpack": "mochila",
+      "umbrella": "guarda-chuva",
+      "handbag": "bolsa",
+      "tie": "gravata",
+      "suitcase": "mochila",
+      "frisbee": "frisbee",
+      "skis": "esquis",
+      "snowboard": "snowboard",
+      "sports ball": "bola",
+      "kite": "pipa",
+      "baseball bat": "taco de beisebol",
+      "baseball glove": "luva de beisebol",
+      "skateboard": "skate",
+      "surfboard": "prancha de surfe",
+      "tennis racket": "raquete de tênis",
+      "bottle": "garrafa",
+      "wine glass": "taça",
+      "cup": "copo",
+      "fork": "garfo",
+      "knife": "faca",
+      "spoon": "colher",
+      "bowl": "tigela",
+      "banana": "banana",
+      "apple": "maçã",
+      "sandwich": "sanduíche",
+      "orange": "laranja",
+      "broccoli": "brócolis",
+      "carrot": "cenoura",
+      "hot dog": "cachorro-quente",
+      "pizza": "pizza",
+      "donut": "rosquinha",
+      "cake": "bolo",
+      "chair": "cadeira",
+      "couch": "sofá",
+      "potted plant": "planta em vaso",
+      "bed": "cama",
+      "dining table": "mesa de jantar",
+      "toilet": "banheiro",
+      "tv": "televisão",
+      "laptop": "laptop",
+      "mouse": "mouse",
+      "remote": "controle remoto",
+      "keyboard": "teclado",
+      "cell phone": "celular",
+      "microwave": "micro-ondas",
+      "oven": "forno",
+      "toaster": "torradeira",
+      "sink": "pia",
+      "refrigerator": "geladeira",
+      "book": "livro",
+      "clock": "relógio",
+      "vase": "vaso",
+      "scissors": "tesoura",
+      "teddy bear": "urso de pelúcia",
+      "hair drier": "secador de cabelo",
+      "toothbrush": "escova de dentes"
+    };
 
-    <!-- Elemento de imagem para mostrar a captura -->
-    <img id="capturedImage" alt="Imagem capturada">
+    // Configura a câmera
+    async function setupCamera() {
+      const video = document.getElementById('video');
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+      } catch (err) {
+        alert('Não foi possível acessar a câmera. Verifique as permissões.');
+      }
+    }
 
-    <script>
-        const videoElement = document.getElementById('videoElement');
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const capturedImage = document.getElementById('capturedImage');
+    // Carrega o modelo COCO-SSD
+    async function loadModel() {
+      const model = await cocoSsd.load();
+      console.log("Modelo COCO-SSD carregado!");
+      return model;
+    }
 
-        // Função para iniciar a câmera
-        async function setupCamera() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                videoElement.srcObject = stream;
-                return new Promise((resolve) => {
-                    videoElement.onloadedmetadata = () => {
-                        resolve(videoElement);
-                    };
-                });
-            } catch (error) {
-                console.error('Erro ao acessar a câmera:', error);
-                alert('Erro ao acessar a câmera: ' + error.message);
+    // Configura a voz para o feedback de áudio
+    function setupVoice() {
+      const voices = speechSynthesis.getVoices();
+      selectedVoice = voices.find(voice => voice.lang === 'pt-BR' && voice.name.includes('female')) 
+                      || voices.find(voice => voice.lang === 'pt-BR') 
+                      || voices[0];
+    }
+
+    // Função para falar um texto
+    function speak(text) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.voice = selectedVoice;
+      utterance.lang = 'pt-BR';
+      speechSynthesis.speak(utterance);
+    }
+
+    // Detecta objetos
+    async function detectObjects(model) {
+      const video = document.getElementById('video');
+      const feedback = document.getElementById('feedback');
+      let lastSpoken = "";
+
+      while (true) {
+        const predictions = await model.detect(video);
+
+        if (predictions.length > 0) {
+          let objectsDetected = predictions
+            .filter(prediction => prediction.score > 0.6)
+            .map(prediction => translationMap[prediction.class] || prediction.class);
+
+          if (objectsDetected.length > 0) {
+            const feedbackText = `Eu enxergo: ${objectsDetected.join(", ")}`;
+            if (feedbackText !== lastSpoken) {
+              speak(feedbackText);
+              lastSpoken = feedbackText;
             }
+            feedback.textContent = feedbackText;
+          } else {
+            feedback.textContent = "Nenhum objeto detectado.";
+          }
+        } else {
+          feedback.textContent = "Nenhum objeto detectado.";
         }
 
-        // Função para capturar a imagem
-        function captureImage() {
-            const context = canvas.getContext('2d');
-            canvas.width = videoElement.videoWidth;
-            canvas.height = videoElement.videoHeight;
-            context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
 
-            // Converte o canvas para uma URL de imagem base64 e exibe no elemento <img>
-            const imageData = canvas.toDataURL('image/png');
-            capturedImage.src = imageData;
-            capturedImage.style.display = 'block'; // Exibe a imagem capturada
-        }
+    async function start() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('Seu navegador não suporta acesso à câmera.');
+        return;
+      }
 
-        async function loadModelAndDetect() {
-            // Carrega o modelo COCO-SSD
-            const model = await cocoSsd.load();
-            console.log("Modelo carregado!");
+      if (!'speechSynthesis' in window) {
+        alert('Seu navegador não suporta síntese de voz.');
+        return;
+      }
 
-            // Inicia a detecção em tempo real
-            detectFrame(videoElement, model);
-        }
+      await setupCamera();
+      speechSynthesis.onvoiceschanged = setupVoice;
+      setupVoice();
 
-        async function detectFrame(video, model) {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
+      const model = await loadModel();
+      detectObjects(model);
+    }
 
-            // Detecta objetos na imagem da câmera
-            const predictions = await model.detect(video);
-
-            // Limpa o canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Desenha as predições
-            predictions.forEach(prediction => {
-                ctx.beginPath();
-                ctx.rect(
-                    prediction.bbox[0],
-                    prediction.bbox[1],
-                    prediction.bbox[2],
-                    prediction.bbox[3]
-                );
-                ctx.lineWidth = 2;
-                ctx.strokeStyle = 'red';
-                ctx.fillStyle = 'red';
-                ctx.stroke();
-                ctx.fillText(
-                    prediction.class + ' - ' + Math.round(prediction.score * 100) + '%',
-                    prediction.bbox[0],
-                    prediction.bbox[1] > 10 ? prediction.bbox[1] - 5 : 10
-                );
-            });
-
-            // Continua a detecção no próximo frame
-            requestAnimationFrame(() => detectFrame(video, model));
-        }
-
-        // Inicia a câmera e a detecção
-        setupCamera().then(loadModelAndDetect);
-        function startVoiceRecognition() {
-            const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-            recognition.lang = 'pt-BR'; // Define o idioma para português
-
-            recognition.onstart = () => {
-                console.log('Ativação por voz iniciada. Fale "sindy" para começar.');
-            };
-
-            recognition.onresult = (event) => {
-                const transcript = event.results[0][0].transcript.toLowerCase();
-                console.log('Comando reconhecido:', transcript);
-                if (transcript.includes('sindy')) {
-                    setupCamera().then(loadModelAndDetect);
-                }
-            };
-
-            recognition.onerror = (event) => {
-                console.error('Erro de reconhecimento de voz:', event.error);
-            };
-
-            recognition.start();
-        }
-
-        // Inicia o reconhecimento de voz
-        startVoiceRecognition();
-    </script>
+    start();
+  </script>
 </body>
 
 </html>
